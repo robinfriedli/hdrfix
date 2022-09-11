@@ -777,6 +777,14 @@ fn extension(input_filename: &Path) -> &str {
 }
 
 fn hdrfix(input_filename: &Path, output_filename: &Path, args: &ArgMatches) -> Result<()> {
+    if !args.is_present("overwrite") && output_filename.exists() {
+        println!(
+            "INFO: Skipping existing file '{}'",
+            output_filename.display()
+        );
+        return Ok(());
+    }
+
     println!(
         "{} -> {}",
         input_filename.to_str().unwrap(),
@@ -927,24 +935,55 @@ fn run(args: &ArgMatches) -> Result<()> {
                 }
             }
         }
-        None => {
-            let input_filename = Path::new(args.value_of("input").expect("input filename missing"));
+        None => match args.value_of("input-dir") {
+            Some(dir) => {
+                let dir = Path::new(dir);
+                if !dir.is_dir() {
+                    return Err(InvalidInputFile);
+                }
 
-            match args.value_of("output") {
-                Some(output_filename) => hdrfix(input_filename, Path::new(output_filename), args),
-                None => {
-                    let suffix = args
-                        .value_of("output-suffix")
-                        .expect("Output filename or suffix must be present");
-                    let mut output_filename = input_filename
-                        .file_stem()
-                        .expect("Invalid input file")
-                        .to_os_string();
-                    output_filename.push(suffix);
-                    hdrfix(input_filename, Path::new(&output_filename), args)
+                let suffix = args
+                    .value_of("output-suffix")
+                    .expect("Output suffix must be set");
+                for dir_entry in dir.read_dir().map_err(IoError)? {
+                    let dir_entry = dir_entry.map_err(IoError)?;
+                    let path = dir_entry.path();
+                    if path.is_file() {
+                        match path.extension() {
+                            Some(extension) if extension == "jxr" => {
+                                let mut output_file = path.file_stem().unwrap().to_os_string();
+                                output_file.push(suffix);
+                                hdrfix(&path, Path::new(&output_file), args)?;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                Ok(())
+            }
+            None => {
+                let input_filename =
+                    Path::new(args.value_of("input").expect("input filename missing"));
+
+                match args.value_of("output") {
+                    Some(output_filename) => {
+                        hdrfix(input_filename, Path::new(output_filename), args)
+                    }
+                    None => {
+                        let suffix = args
+                            .value_of("output-suffix")
+                            .expect("Output filename or suffix must be present");
+                        let mut output_filename = input_filename
+                            .file_stem()
+                            .expect("Invalid input file")
+                            .to_os_string();
+                        output_filename.push(suffix);
+                        hdrfix(input_filename, Path::new(&output_filename), args)
+                    }
                 }
             }
-        }
+        },
     }
 }
 
@@ -1018,6 +1057,17 @@ fn main() {
             .short("s")
             .default_value("-sdr.jpg")
             .conflicts_with("output"))
+        .arg(Arg::with_name("overwrite")
+            .help("If this option is enabled output files with the same name will be overwritten.")
+            .long("overwrite")
+            .takes_value(false))
+        .arg(Arg::with_name("input-dir")
+            .help("Input directory for jxr files to convert. The name for each output file is determined by the output-suffix argument. Whether existing output files are overwritten is defined by the overwrite option.")
+            .long("input-dir")
+            .alias("dir")
+            .short("d")
+            .takes_value(true)
+            .conflicts_with("input"))
         .get_matches();
 
     match run(&args) {
