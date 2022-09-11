@@ -13,7 +13,7 @@ use std::time::Duration;
 use glam::f32::{Mat3, Vec3};
 
 // CLI bits
-use clap::{Arg, App, ArgMatches};
+use clap::{Arg, App, ArgMatches, crate_version};
 use time::OffsetDateTime;
 
 // Parallelism bits
@@ -945,7 +945,7 @@ fn run(args: &ArgMatches) -> Result<()> {
 
 fn main() {
     let args = App::new("hdrfix converter for HDR screenshots")
-        .version("0.1.0")
+        .version(crate_version!())
         .author("Brion Vibber <brion@pobox.com>")
         .arg(Arg::with_name("input")
             .help("Input filename, must be .jxr or .png as saved by NVIDIA capture overlay.")
