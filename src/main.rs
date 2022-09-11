@@ -919,6 +919,9 @@ fn run(args: &ArgMatches) -> Result<()> {
             let mut watcher = RecommendedWatcher::new(tx, Duration::from_secs(2))?;
             watcher.watch(folder, RecursiveMode::Recursive)?;
 
+            let suffix = args
+                .value_of("output-suffix")
+                .expect("Output suffix must be set");
             loop {
                 let event = rx.recv()?;
                 if let DebouncedEvent::Create(input_path) = event {
@@ -926,7 +929,7 @@ fn run(args: &ArgMatches) -> Result<()> {
                     if ext == "jxr" {
                         let mut output_filename: OsString =
                             input_path.file_stem().unwrap().to_os_string();
-                        output_filename.push("-sdr.jpg");
+                        output_filename.push(suffix);
                         let output_path = input_path.with_file_name(output_filename);
                         if !output_path.exists() {
                             hdrfix(&input_path, &output_path, args)?;
