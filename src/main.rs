@@ -1016,7 +1016,8 @@ fn main() {
             .help("Suffix for output files when watching or converting a directory. May also be used instead of an explicit output file name for single files. Includes the suffix for the filename including the file extension, must be either png or jpg. Defaults to '-sdr.jpg'.")
             .long("output-suffix")
             .short("s")
-            .default_value("-sdr.jpg"))
+            .default_value("-sdr.jpg")
+            .conflicts_with("output"))
         .get_matches();
 
     match run(&args) {
