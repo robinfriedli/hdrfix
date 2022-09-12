@@ -1,7 +1,6 @@
 #![warn(clippy::all)]
 
 use std::cmp::Ordering;
-use std::ffi::OsString;
 use std::fs::File;
 use std::io::{self, Write};
 use std::num;
@@ -768,14 +767,6 @@ where
     }
 }
 
-fn extension(input_filename: &Path) -> &str {
-    input_filename
-        .extension()
-        .expect("Invalid output path, no extension")
-        .to_str()
-        .unwrap()
-}
-
 fn hdrfix(input_filename: &Path, output_filename: &Path, args: &ArgMatches) -> Result<()> {
     if !args.is_present("overwrite") && output_filename.exists() {
         println!(
@@ -791,13 +782,10 @@ fn hdrfix(input_filename: &Path, output_filename: &Path, args: &ArgMatches) -> R
         output_filename.to_str().unwrap()
     );
 
-    let source = time_func("read_input", || {
-        let ext = extension(input_filename);
-        match ext {
-            "png" => read_png(input_filename),
-            "jxr" => read_jxr(input_filename),
-            _ => Err(InvalidInputFile),
-        }
+    let source = time_func("read_input", || match input_filename.extension() {
+        Some(ext) if ext == "png" => read_png(input_filename),
+        Some(ext) if ext == "jxr" => read_jxr(input_filename),
+        _ => Err(InvalidInputFile),
     })?;
     let width = source.width as usize;
     let height = source.height as usize;
@@ -900,13 +888,10 @@ fn hdrfix(input_filename: &Path, output_filename: &Path, args: &ArgMatches) -> R
         Ok(())
     })?;
 
-    time_func("write output", || {
-        let ext = extension(output_filename);
-        match ext {
-            "png" => write_png(output_filename, &dest),
-            "jpg" | "jpeg" => write_jpeg(output_filename, &dest),
-            _ => Err(InvalidOutputFile),
-        }
+    time_func("write output", || match output_filename.extension() {
+        Some(ext) if ext == "png" => write_png(output_filename, &dest),
+        Some(ext) if ext == "jpg" || ext == "jpeg" => write_jpeg(output_filename, &dest),
+        _ => Err(InvalidOutputFile),
     })?;
 
     Ok(())
@@ -925,14 +910,18 @@ fn run(args: &ArgMatches) -> Result<()> {
             loop {
                 let event = rx.recv()?;
                 if let DebouncedEvent::Create(input_path) = event {
-                    let ext = extension(&input_path);
-                    if ext == "jxr" {
-                        let mut output_filename: OsString =
-                            input_path.file_stem().unwrap().to_os_string();
-                        output_filename.push(suffix);
-                        let output_path = input_path.with_file_name(output_filename);
-                        if !output_path.exists() {
-                            hdrfix(&input_path, &output_path, args)?;
+                    if input_path
+                        .extension()
+                        .map(|ext| ext == "jxr")
+                        .unwrap_or(false)
+                    {
+                        if let Some(file_stem) = input_path.file_stem() {
+                            let mut output_filename = file_stem.to_os_string();
+                            output_filename.push(suffix);
+                            let output_path = input_path.with_file_name(output_filename);
+                            if let Err(e) = hdrfix(&input_path, &output_path, args) {
+                                eprintln!("Error: {}", e);
+                            }
                         }
                     }
                 }
